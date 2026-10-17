@@ -23,8 +23,8 @@ uv sync
 When this part is done, each new email flows to your laptop like this:
 
 ```text
-New email → Nylas → Serveo tunnel → main.py /events → saved to requests/events/
-                                                    → shown at localhost:8000
+New email → Nylas → Cloudflare tunnel → main.py /events → saved to requests/events/
+                                                        → shown at localhost:8000
 ```
 
 Already finished Part 1 and coming back to test again? See [Start a New Session](docs/start-new-session.md).
@@ -62,21 +62,29 @@ Nylas only redirects to callback URIs registered in the dashboard, which is why 
 
 ### Step 2: Configure a Tunnel
 
-Nylas must reach your local server over the internet to deliver webhooks. We use [Serveo](https://serveo.net/), which needs no account or installation.
+Nylas must reach your local server over the internet to deliver webhooks. We use a [Cloudflare quick tunnel](https://github.com/cloudflare/cloudflared), which needs no account.
+
+Install it once:
+
+```bash
+brew install cloudflared
+```
+
+On Windows, use `winget install --id Cloudflare.cloudflared` instead.
 
 In a separate terminal, run:
 
 ```bash
-ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R 80:localhost:8000 serveo.net
+cloudflared tunnel --url http://localhost:8000
 ```
 
-Copy the public HTTPS URL it prints into `.env`:
+Copy the `https://...trycloudflare.com` URL it prints into `.env`:
 
 ```env
-SERVER_URL=https://your-subdomain.serveo.net
+SERVER_URL=https://your-tunnel-name.trycloudflare.com
 ```
 
-Keep this terminal open. Serveo is free and can disconnect on its own without warning. If the URL changes when you reconnect, update `SERVER_URL` and register a new webhook. See the [troubleshooting guide](docs/webhook-troubleshoot-guide.md#2-expired-or-changed-tunnel-url) for how to check whether the tunnel is down.
+Keep this terminal open. A new URL can take up to a minute to start working. Each time you restart `cloudflared` you get a new URL, so update `SERVER_URL` and register a new webhook. See the [troubleshooting guide](docs/webhook-troubleshoot-guide.md#2-expired-or-changed-tunnel-url) for how to check whether the tunnel is down.
 
 ### Step 3: Start the Server
 
