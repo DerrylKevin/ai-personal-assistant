@@ -17,13 +17,23 @@ uv add openai typesafe-sdk==0.7.0 ollama ipykernel
 
 ## 2. Set up keys and downloads
 
-You need 2 API keys and 1 download. Put the keys in your `.env` file, never in `.env.example` or in code.
+**You only need to set up one of the three options below, not all of them.**
+
+- **OpenAI is the easiest to set up for general tasks.** It needs a paid API key.
+- **Ollama is free.** It runs on your laptop and needs no key.
+- **TypeSafe (Jev) is optional.** Set it up only if you want to try the decision model.
+
+Week 3's spam workflow uses OpenAI, so OpenAI is the best choice if you plan to continue.
+
+Put any keys in your `.env` file, never in `.env.example` or in code.
 
 - **OpenAI key:** Create one at https://platform.openai.com/api-keys and add it as `OPENAI_API_KEY=...`.
 - **TypeSafe (Jev) key:** Log in at https://console.typesafe.ai/playground, create a key at https://console.typesafe.ai/keys, and add it as `TYPESAFE_API_KEY=...`.
 - **Ollama (no key):** Download it from https://ollama.com/download, then run `ollama pull qwen2.5:3b-instruct`.
 
-## 3. Run each file
+## 3. Run the files for your option
+
+Run only the files for the option you set up. `structured_output.py` also uses OpenAI. The Pydantic notebook needs no key.
 
 | File | Command |
 | --- | --- |
