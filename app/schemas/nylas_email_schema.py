@@ -29,9 +29,9 @@ class EmailObject(BaseModel):
     id: str
     object: str
     reply_to: list = []
-    snippet: str
+    snippet: str = ""
     starred: bool
-    subject: str
+    subject: str = ""
     thread_id: str
     to: list
     unread: bool

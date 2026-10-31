@@ -8,6 +8,7 @@ __pycache__/
 
 # Local webhook captures
 requests/events/*.json
+requests/enriched/*.json
 
 # macOS
 .DS_Store

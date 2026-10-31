@@ -1,22 +1,20 @@
 # Import packages
-import hashlib
-import hmac
 import os
 from typing import Optional
-import uuid
-from pathlib import Path
 
-from fastapi import FastAPI, Header, Request, status
+from fastapi import BackgroundTasks, FastAPI, Header, Request, status
 from fastapi.responses import PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
-from schemas.nylas_email_schema import EmailObject
-from schemas.nylas_webhook_schema import WebhookEvent
 
 load_dotenv(override=True)
 
-# Array to hold webhook dataclass
-webhooks = []
+from agents.email_agent import analyze_email
+from connectors.nylas_connector import event_to_email, store_raw_event, verify_signature
+from schemas.nylas_webhook_schema import WebhookEvent
+from services.email_service import EmailService
+
+service = EmailService(analyze=analyze_email)
 
 # Create the FastAPI app
 app = FastAPI()
@@ -29,7 +27,7 @@ templates = Jinja2Templates(directory="templates")
 @app.api_route("/events", methods=["GET", "POST"])
 async def webhook(
     request: Request,
-    event: Optional[WebhookEvent] = None,
+    background_tasks: BackgroundTasks,
     x_nylas_signature: Optional[str] = Header(None),
 ):
     if request.method == "GET":
@@ -42,45 +40,31 @@ async def webhook(
         )
     # POST method
     body = await request.body()
-    is_genuine = verify_signature(
-        message=body,
-        key=os.environ.get("WEBHOOK_SECRET", "").encode("utf8"),
-        signature=x_nylas_signature,
-    )
-    if not is_genuine:
+    if not verify_signature(body, x_nylas_signature, os.environ.get("WEBHOOK_SECRET", "")):
         return PlainTextResponse("Signature verification failed!", status_code=401)
 
-    # Store the raw event JSON
-    if event:
-        store_event_json(event)
-        email_obj = EmailObject(**event.data["object"])
-    else:
-        return PlainTextResponse("No event data", status_code=400)
+    # Store the raw event first, so nothing is lost if mapping fails
+    store_raw_event(body)
 
-    webhooks.append(email_obj)
+    try:
+        email = event_to_email(WebhookEvent.model_validate_json(body))
+    except Exception as e:
+        # Return 200 anyway: the raw event is saved, and a retry would fail the same way
+        print(f" * Could not map event to Email: {type(e).__name__}: {e}")
+        return PlainTextResponse("Event stored, mapping failed", status_code=200)
+
+    # Enrich after the response is sent, so Nylas isn't kept waiting on the LLM
+    if email and service.capture(email):
+        background_tasks.add_task(service.enrich, email.id)
     return PlainTextResponse("Webhook received", status_code=200)
 
 
 # Main page
 @app.get("/")
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {"webhooks": webhooks})
-
-
-# Signature verification
-def verify_signature(message, key, signature):
-    digest = hmac.new(key, msg=message, digestmod=hashlib.sha256).hexdigest()
-
-    return hmac.compare_digest(digest, signature)
-
-
-def store_event_json(event: WebhookEvent):
-    base_dir = Path(__file__).resolve().parent.parent
-    events_dir = base_dir / "requests" / "events"
-    events_dir.mkdir(parents=True, exist_ok=True)
-    filename = events_dir / f"{uuid.uuid1()}.json"
-    with open(filename, "w") as f:
-        f.write(event.model_dump_json())
+    return templates.TemplateResponse(
+        request, "index.html", {"records": service.list_emails()}
+    )
 
 
 # Run our application

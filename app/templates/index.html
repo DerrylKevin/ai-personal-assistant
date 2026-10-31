@@ -5,48 +5,55 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 2em; }
         table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ccc; padding: 8px; }
+        th, td { border: 1px solid #ccc; padding: 8px; vertical-align: top; }
         th { background: #f4f4f4; }
+        .muted { color: #888; }
+        .failed { color: #b00020; }
     </style>
 </head>
 <body>
-    <h1>Nylas Webhooks Received</h1>
-    {% if webhooks %}
+    <h1>Emails Received</h1>
+    {% if records %}
         <table>
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Date</th>
+                    <th>Received</th>
+                    <th>From</th>
                     <th>Subject</th>
-                    <th>From Name</th>
-                    <th>From Email</th>
+                    <th>Category</th>
+                    <th>Priority</th>
+                    <th>Needs Reply</th>
+                    <th>Summary</th>
+                    <th>Action Items</th>
                 </tr>
             </thead>
             <tbody>
-                {% for webhook in webhooks %}
+                {% for record in records %}
+                {% set email = record.email %}
                 <tr>
-                    <td>{{ webhook.id }}</td>
-                    <td>
-                        {# Convert timestamp to readable date #}
-                        {{ webhook.date | int}}
-                    </td>
-                    <td>{{ webhook.subject }}</td>
-                    <td>
-                        {% if webhook.from_ and webhook.from_[0].name %}
-                            {{ webhook.from_[0].name }}
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if webhook.from_ and webhook.from_[0].email %}
-                            {{ webhook.from_[0].email }}
-                        {% endif %}
-                    </td>
+                    <td>{{ email.received_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
+                    <td>{{ email.sender.name or email.sender.email }}</td>
+                    <td>{{ email.subject }}</td>
+                    {% if record.status == 'done' %}
+                        {% set a = record.analysis %}
+                        <td>{{ a.category }}</td>
+                        <td>{{ a.priority }}</td>
+                        <td>{{ 'Yes' if a.needs_reply else 'No' }}</td>
+                        <td>{{ a.summary }}</td>
+                        <td>
+                            {% for item in a.action_items %}• {{ item }}<br>{% endfor %}
+                        </td>
+                    {% elif record.status == 'failed' %}
+                        <td colspan="5" class="failed">Analysis failed: {{ record.error }}</td>
+                    {% else %}
+                        <td colspan="5" class="muted">Analyzing… refresh in a few seconds.</td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     {% else %}
-        <p>No webhooks received yet.</p>
+        <p>No emails received yet.</p>
     {% endif %}
 </body>
 </html>
